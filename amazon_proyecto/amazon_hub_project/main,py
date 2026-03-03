@@ -1,0 +1,154 @@
+import tkinter as tk
+from models import Order
+from structures import Inventory, OrderQueue, TruckStack
+
+GREEN = "#16B50E"
+DARK = "#1E1E1E"
+WHITE = "#FFFFFF"
+
+inventory = Inventory()
+queue = OrderQueue()
+truck = TruckStack()
+
+# NUEVA LISTA PARA HISTORIAL DE ENTREGAS
+delivered_orders = []
+
+root = tk.Tk()
+root.title("Amazon Hub - Simulador Logístico")
+root.geometry("1100x650")
+root.configure(bg=DARK)
+root.resizable(False, False)
+
+# ================= FUNCIONES =================
+
+def update_lists():
+    list_queue.delete(0, tk.END)
+    list_truck.delete(0, tk.END)
+    list_delivered.delete(0, tk.END)
+
+    for order in queue.get_all():
+        list_queue.insert(tk.END, str(order))
+
+    for order in reversed(truck.get_all()):
+        list_truck.insert(tk.END, str(order))
+
+    for order in delivered_orders:
+        list_delivered.insert(tk.END, str(order))
+
+
+def set_status(msg, color=GREEN):
+    status_label.config(text=msg, fg=color)
+
+
+def add_order():
+    name = entry_name.get()
+    category = category_var.get()
+    destination = destination_var.get()
+
+    if name == "":
+        set_status("⚠ Ingrese nombre del cliente", "red")
+        return
+
+    order = Order(name, category, destination)
+    queue.receive_order(order)
+
+    entry_name.delete(0, tk.END)
+    update_lists()
+    set_status("✔ Pedido recibido en cola (FIFO)")
+
+
+def process_order():
+    order = queue.dispatch_order()
+
+    if order:
+        truck.load_truck(order)
+        update_lists()
+        set_status("✔ Pedido cargado al camión (LIFO)")
+    else:
+        set_status("⚠ No hay pedidos en cola", "red")
+
+
+def deliver():
+    delivered = truck.deliver_package()
+
+    if delivered:
+        delivered_orders.append(delivered)  # ← se guarda en historial
+        update_lists()
+        set_status(f"✔ Entregado en {delivered.destination}")
+    else:
+        set_status("⚠ Camión vacío", "red")
+
+
+# ================= INTERFAZ =================
+
+tk.Label(root,
+         text="AMAZON HUB - SISTEMA LOGÍSTICO",
+         font=("Arial", 20, "bold"),
+         bg=DARK, fg=GREEN).pack(pady=15)
+
+# FORMULARIO
+form = tk.Frame(root, bg=DARK)
+form.pack(pady=10)
+
+tk.Label(form, text="Cliente:", bg=DARK, fg=WHITE).grid(row=0, column=0)
+entry_name = tk.Entry(form)
+entry_name.grid(row=0, column=1)
+
+tk.Label(form, text="Categoría:", bg=DARK, fg=WHITE).grid(row=1, column=0)
+category_var = tk.StringVar()
+category_var.set(inventory.shelves[0])
+tk.OptionMenu(form, category_var, *inventory.shelves).grid(row=1, column=1)
+
+tk.Label(form, text="Destino:", bg=DARK, fg=WHITE).grid(row=2, column=0)
+destination_var = tk.StringVar()
+destination_var.set("Parada A")
+tk.OptionMenu(form, destination_var,
+              "Parada A", "Parada B", "Parada C").grid(row=2, column=1)
+
+# BOTONES
+def green_btn(text, cmd):
+    return tk.Button(root, text=text,
+                     command=cmd,
+                     bg=GREEN,
+                     fg="white",
+                     width=35,
+                     height=2,
+                     bd=0)
+
+green_btn("Recibir Pedido (Cola FIFO)", add_order).pack(pady=5)
+green_btn("Cargar Camión (Pila LIFO)", process_order).pack(pady=5)
+green_btn("Entregar Paquete", deliver).pack(pady=5)
+
+# ================= LISTAS VISUALES =================
+
+lists = tk.Frame(root, bg=DARK)
+lists.pack(pady=20)
+
+tk.Label(lists, text="COLA (FIFO)",
+         bg=DARK, fg=GREEN, font=("Arial", 12, "bold")).grid(row=0, column=0)
+
+tk.Label(lists, text="CAMIÓN (LIFO)",
+         bg=DARK, fg=GREEN, font=("Arial", 12, "bold")).grid(row=0, column=1)
+
+tk.Label(lists, text="ENTREGADOS",
+         bg=DARK, fg=GREEN, font=("Arial", 12, "bold")).grid(row=0, column=2)
+
+list_queue = tk.Listbox(lists, width=40, height=12)
+list_queue.grid(row=1, column=0, padx=15)
+
+list_truck = tk.Listbox(lists, width=40, height=12)
+list_truck.grid(row=1, column=1, padx=15)
+
+list_delivered = tk.Listbox(lists, width=40, height=12)
+list_delivered.grid(row=1, column=2, padx=15)
+
+# PANEL DE ESTADO
+status_label = tk.Label(root,
+                        text="Sistema listo",
+                        bg=DARK,
+                        fg=GREEN,
+                        font=("Arial", 12))
+status_label.pack(pady=15)
+
+update_lists()
+root.mainloop()
